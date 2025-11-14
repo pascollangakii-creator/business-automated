@@ -7,6 +7,8 @@ import SalesLog from './components/SalesLog';
 import ChatInput from './components/ChatInput';
 import { LogoIcon, PlusIcon, TrashIcon } from './components/Icon';
 
+const GOOGLE_SHEET_WEB_APP_URL = 'https://script.google.com/macros/s/AKfycby6q4-m8CfTCbMKXbwut9JsZbPnJLoPUmb1Q6PRalft2CE5lhdNe6aLvVZZEZGzLe0_/exec';
+
 const App: React.FC = () => {
   const [sales, setSales] = useState<Sale[]>([]);
   const [currentTransactionItems, setCurrentTransactionItems] = useState<TransactionItem[]>([]);
@@ -14,6 +16,7 @@ const App: React.FC = () => {
   const [customerEmail, setCustomerEmail] = useState('');
   const [cashTendered, setCashTendered] = useState('');
   const [isLoading, setIsLoading] = useState(false);
+  const [isRecording, setIsRecording] = useState(false);
 
   const todayStr = new Date().toISOString().slice(0, 10);
   const currentMonthStr = todayStr.slice(0, 7);
@@ -95,8 +98,9 @@ const App: React.FC = () => {
     setCurrentTransactionItems(prev => prev.filter(item => item.tempId !== tempId));
   };
   
-  const handleRecordSale = () => {
-    if (currentTransactionItems.length === 0) return;
+  const handleRecordSale = async () => {
+    if (currentTransactionItems.length === 0 || isRecording) return;
+    setIsRecording(true);
 
     const newSales: Sale[] = currentTransactionItems.map(item => ({
         id: `${Date.now()}-${item.tempId}`,
@@ -106,14 +110,38 @@ const App: React.FC = () => {
         unitPrice: item.unitPrice,
         total: item.quantity * item.unitPrice,
     }));
+    
+    const sheetData = {
+        customerName: customerName,
+        customerEmail: customerEmail,
+        items: newSales.map(sale => ({
+            id: sale.id,
+            itemName: sale.itemName,
+            quantity: sale.quantity,
+            unitPrice: sale.unitPrice,
+            total: sale.total,
+        })),
+    };
 
-    setSales(prev => [...prev, ...newSales]);
-
-    // Reset form
-    setCurrentTransactionItems([]);
-    setCustomerName('');
-    setCustomerEmail('');
-    setCashTendered('');
+    try {
+        await fetch(GOOGLE_SHEET_WEB_APP_URL, {
+            method: 'POST',
+            mode: 'no-cors',
+            body: JSON.stringify(sheetData)
+        });
+        alert('Sale recorded and saved to Google Sheet!');
+    } catch (error) {
+        console.error('Failed to send data to Google Sheet:', error);
+        alert('Sale recorded locally, but failed to save to Google Sheet. Please check your connection.');
+    } finally {
+        // Always update local state and reset form
+        setSales(prev => [...prev, ...newSales]);
+        setCurrentTransactionItems([]);
+        setCustomerName('');
+        setCustomerEmail('');
+        setCashTendered('');
+        setIsRecording(false);
+    }
   };
 
 
@@ -208,10 +236,10 @@ const App: React.FC = () => {
 
                 <button 
                   onClick={handleRecordSale}
-                  disabled={currentTransactionItems.length === 0 || creditDue > 0}
+                  disabled={currentTransactionItems.length === 0 || creditDue > 0 || isRecording}
                   className="w-full bg-blue-600 text-white rounded-lg py-3 text-lg font-semibold hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 disabled:bg-blue-300 dark:disabled:bg-slate-600 disabled:cursor-not-allowed transition-all"
                 >
-                  Record Sale & Send Receipt
+                  {isRecording ? 'Recording...' : 'Record Sale'}
                 </button>
             </div>
           </div>
