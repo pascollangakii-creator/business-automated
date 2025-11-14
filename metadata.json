@@ -1,0 +1,5 @@
+{
+  "name": "AI Sales Assistant",
+  "description": "An AI-powered sales assistant to help business owners record sales, calculate totals, and generate daily and monthly summaries using natural language.",
+  "requestFramePermissions": []
+}
